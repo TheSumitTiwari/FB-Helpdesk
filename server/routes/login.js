@@ -16,12 +16,12 @@ const fetch = require('node-fetch');
 
 
 
-router.post("/login", (req, res1) => {
+router.post("/login", async (req, res1) => {
   const userId = req.body.userId;
   const accessToken = req.body.accessToken;
   //------------
   let requestURL = `https://graph.facebook.com/${userId}?fields=id,name,email,picture&access_token=${accessToken}`;
-  fetch(requestURL, 
+  await fetch(requestURL, 
   { method: 'GET',
   })
     .then( async res => res.json()) // expecting a json response
