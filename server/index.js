@@ -4,6 +4,9 @@ const cors = require("cors");
 const app = express();
 require ('./middleware/passport');
 const config = require("config");
+const request = require('request');
+
+const Sender = require("./models/Sender");
 // Connect Database
 connectDB();
 
@@ -16,7 +19,7 @@ app.get("/", (req, res) => res.send("API Running"));
 // Define Routes
 app.use("/", require("./routes/login"));
 
-//webhook
+//webhook-------------------------------------------------------------------------------------------------
 app.get('/webhook', (req, res) => {
 
     // Your verify token. Should be a random string.
@@ -52,25 +55,55 @@ app.get('/webhook', (req, res) => {
     if (body.object === 'page') {
   
       // Iterates over each entry - there may be multiple if batched
-      body.entry.forEach(function(entry) {
+      body.entry.forEach(async (entry) => {
   
-        // Gets the body of the webhook event
+        try{// Gets the body of the webhook event
         let webhookEvent = entry.messaging[0];
         console.log(webhookEvent);
   
         // Get the sender PSID
         let senderPsid = webhookEvent.sender.id;
+        let recipientId = webhookEvent.recipient.id;
+        let message = webhookEvent.message;
+        let timestamp = webhookEvent.timestamp;
+
         console.log('Sender PSID: ' + senderPsid);
-  
         // Check if the event is a message or postback and
         // pass the event to the appropriate handler function
+
         if (webhookEvent.message) {
           handleMessage(senderPsid, webhookEvent.message);
-        } else if (webhookEvent.postback) {
+
+          let sender = await Sender.find({
+            senderPsid,
+            recipientId
+          });
+
+          if(sender){
+            sender.message.push(messages, timestamp);
+            sender.save();
+          }else{
+            messages = { message, timestamp};
+            const request = new Sender({
+              senderPsid,
+              recipientId,
+            });
+            request.message.push({messages, timestamp});
+            request.save();
+          }
+        } 
+//----------------------------------------------------------------- 
+        else if (webhookEvent.postback) {
           handlePostback(senderPsid, webhookEvent.postback);
         }
-      });
-  
+        
+      }catch (err) {
+        console.error(err.message);
+        res.sendStatus(404);
+      }
+    }
+  );
+    
       // Returns a '200 OK' response to all requests
       res.status(200).send('EVENT_RECEIVED');
     } else {
@@ -83,6 +116,7 @@ app.get('/webhook', (req, res) => {
   // Handles messages events
   function handleMessage(senderPsid, receivedMessage) {
     let response;
+
   
     // Checks if the message contains text
     if (receivedMessage.text) {
@@ -147,7 +181,7 @@ app.get('/webhook', (req, res) => {
   function callSendAPI(senderPsid, response) {
   
     // The page access token we have generated in your app settings
-    const PAGE_ACCESS_TOKEN = process.env.PAGE_ACCESS_TOKEN;
+    const PAGE_ACCESS_TOKEN = config.get("PAGE_ACCESS_TOKEN");
   
     // Construct the message body
     let requestBody = {
